@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import RouteFinderCard from '../../components/RouteFinderCard';
+import BuildingAccessibilityCard from '../../components/BuildingAccessibilityCard';
 import { useRouteFinder } from '../../hooks/useRouteFinder';
 
 // Dynamic import with SSR disabled for Leaflet map
@@ -23,6 +24,12 @@ export default function DashboardPage() {
   // Module 1: source/destination selection + route search state shared by the map and the route card
   const routeFinder = useRouteFinder();
 
+  // Module 2: buildings list, selected building, and fetch status
+  const [buildings, setBuildings] = useState([]);
+  const [selectedBuilding, setSelectedBuilding] = useState(null);
+  const [buildingsLoading, setBuildingsLoading] = useState(true);
+  const [buildingsError, setBuildingsError] = useState(null);
+
   // Fetch logged-in user and their role from the verified JWT token
   useEffect(() => {
     fetch('/api/auth/me')
@@ -33,6 +40,26 @@ export default function DashboardPage() {
         }
       })
       .catch(() => {});
+  }, []);
+
+  // Fetch building accessibility data once on mount
+  useEffect(() => {
+    fetch('/api/buildings')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load building data');
+        return res.json();
+      })
+      .then((data) => {
+        setBuildings(data.buildings ?? []);
+        // Pre-select the first building so the card is never empty on load
+        setSelectedBuilding(data.buildings?.[0] ?? null);
+      })
+      .catch(() => {
+        setBuildingsError('Unable to load building accessibility data. Please try again later.');
+      })
+      .finally(() => {
+        setBuildingsLoading(false);
+      });
   }, []);
 
   const handleLogout = async () => {
@@ -97,26 +124,82 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Action Sections */}
-        <div className="grid md:grid-cols-3 gap-4">
-          <RouteFinderCard finder={routeFinder} />
+        {/* Action Sections — responsive two-column split:
+            mobile: stacked | lg+: left 2/3 actions + right 1/3 accessibility panel */}
+        <div className="flex flex-col lg:flex-row gap-4 items-start">
 
-          <div className="bg-white border border-slate-200 rounded-lg p-5">
-            <h3 className="font-semibold text-slate-800 text-sm mb-1">
-              Report a Barrier
-            </h3>
-            <p className="text-xs text-slate-500">
-              Submit reports for blocked ramps, locked gates, or broken lifts.
-            </p>
+          {/* Left: existing three-card grid */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-1 gap-4 w-full lg:flex-1">
+            <RouteFinderCard finder={routeFinder} />
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h3 className="font-semibold text-slate-800 text-sm mb-1">
+                Report a Barrier
+              </h3>
+              <p className="text-xs text-slate-500">
+                Submit reports for blocked ramps, locked gates, or broken lifts.
+              </p>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h3 className="font-semibold text-slate-800 text-sm mb-1">
+                Resolution Updates
+              </h3>
+              <p className="text-xs text-slate-500">
+                Track estate team clearance and maintenance tickets.
+              </p>
+            </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-lg p-5">
-            <h3 className="font-semibold text-slate-800 text-sm mb-1">
-              Resolution Updates
-            </h3>
-            <p className="text-xs text-slate-500">
-              Track estate team clearance and maintenance tickets.
-            </p>
+          {/* Right: building accessibility panel */}
+          <div className="w-full lg:w-80 shrink-0 flex flex-col gap-3">
+
+            {/* Building picker */}
+            <div className="bg-white border border-slate-200 rounded-lg p-4">
+              <label
+                htmlFor="building-select"
+                className="block text-xs font-medium text-slate-700 mb-1.5"
+              >
+                Building accessibility status
+              </label>
+              <select
+                id="building-select"
+                disabled={buildingsLoading || !!buildingsError}
+                value={selectedBuilding?.id ?? ''}
+                onChange={(e) => {
+                  const match = buildings.find((b) => b.id === Number(e.target.value));
+                  setSelectedBuilding(match ?? null);
+                }}
+                className="w-full text-xs text-slate-800 bg-white border border-slate-300 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
+              >
+                {buildingsLoading && <option>Loading…</option>}
+                {buildingsError  && <option>Unavailable</option>}
+                {!buildingsLoading && !buildingsError && buildings.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Loading skeleton */}
+            {buildingsLoading && (
+              <div className="bg-white border border-slate-200 rounded-lg p-5 flex items-center gap-3">
+                <div className="w-5 h-5 border-2 border-orange-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                <p className="text-xs text-slate-500">Loading building data…</p>
+              </div>
+            )}
+
+            {/* Fetch error */}
+            {buildingsError && (
+              <div role="alert" className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-xs font-semibold text-red-700 mb-0.5">Could not load data</p>
+                <p className="text-[11px] text-red-600">{buildingsError}</p>
+              </div>
+            )}
+
+            {/* Accessibility card — shown once data is ready */}
+            {!buildingsLoading && !buildingsError && (
+              <BuildingAccessibilityCard building={selectedBuilding} />
+            )}
           </div>
         </div>
       </main>
