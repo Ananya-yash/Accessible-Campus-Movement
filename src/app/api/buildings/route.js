@@ -17,20 +17,27 @@ export async function GET(request) {
   try {
     // 2. Fetch all buildings ordered alphabetically
     const result = await query(
-      `SELECT id, name, latitude, longitude, ramp_status, lift_status, stairs_status
+      `SELECT id, campus_key, name, latitude, longitude,
+              ramps_total, ramps_working,
+              lifts_total, lifts_working,
+              stairs_total, stairs_working
        FROM buildings
        ORDER BY name ASC`
     );
 
     // 3. Reshape rows: convert snake_case DB columns to camelCase
     const buildings = result.rows.map((row) => ({
-      id:           row.id,
-      name:         row.name,
-      latitude:     row.latitude,
-      longitude:    row.longitude,
-      rampStatus:   row.ramp_status,
-      liftStatus:   row.lift_status,
-      stairsStatus: row.stairs_status,
+      id:            row.id,
+      campusKey:     row.campus_key,
+      name:          row.name,
+      latitude:      row.latitude,
+      longitude:     row.longitude,
+      rampsTotal:    row.ramps_total,
+      rampsWorking:  row.ramps_working,
+      liftsTotal:    row.lifts_total,
+      liftsWorking:  row.lifts_working,
+      stairsTotal:   row.stairs_total,
+      stairsWorking: row.stairs_working,
     }));
 
     // 4. Return the clean JSON response
